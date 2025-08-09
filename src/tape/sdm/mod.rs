@@ -164,6 +164,74 @@ impl SdmTape {
         Ok(())
     }
     
+    /// Write data with instruction counter
+    pub fn write_with_ic(&self, pos: i64, data: &[u8], ic: u64) -> Result<(), String> {
+        // Record access for prediction
+        self.predictor.write().unwrap().record_access(pos, data.len(), true);
+        
+        // Calculate page range
+        let start_page = pos / self.config.page_size as i64;
+        let end_page = (pos + data.len() as i64 - 1) / self.config.page_size as i64;
+        
+        let mut offset = 0;
+        
+        // Write each page
+        for page_num in start_page..=end_page {
+            let page_start = page_num * self.config.page_size as i64;
+            let offset_in_page = if page_num == start_page {
+                (pos - page_start) as usize
+            } else {
+                0
+            };
+            
+            let bytes_to_write = if page_num == end_page {
+                data.len() - offset
+            } else {
+                self.config.page_size - offset_in_page
+            };
+            
+            self.write_page_with_ic(page_num, offset_in_page, &data[offset..offset + bytes_to_write], ic)?;
+            offset += bytes_to_write;
+        }
+        
+        Ok(())
+    }
+    
+    /// Read data at a specific instruction counter
+    pub fn read_at_ic(&self, pos: i64, len: usize, ic: u64) -> Result<Vec<u8>, String> {
+        // Find the version of pages at the given IC
+        let page_table = self.page_table.read().unwrap();
+        let start_page = pos / self.config.page_size as i64;
+        let end_page = (pos + len as i64 - 1) / self.config.page_size as i64;
+        
+        let mut result = Vec::with_capacity(len);
+        
+        for page_num in start_page..=end_page {
+            // Get version at IC
+            let page_data = page_table.read_at_ic(page_num, ic)
+                .ok_or_else(|| format!("No data for page {} at IC {}", page_num, ic))?;
+            
+            // Calculate offsets (same as regular read)
+            let page_start = page_num * self.config.page_size as i64;
+            let offset_in_page = if page_num == start_page {
+                (pos - page_start) as usize
+            } else {
+                0
+            };
+            
+            let bytes_from_page = if page_num == end_page {
+                let end_offset = ((pos + len as i64) - page_start) as usize;
+                end_offset - offset_in_page
+            } else {
+                self.config.page_size - offset_in_page
+            };
+            
+            result.extend_from_slice(&page_data[offset_in_page..offset_in_page + bytes_from_page]);
+        }
+        
+        Ok(result)
+    }
+    
     /// Read data from a specific point in time
     pub fn read_at_time(&self, pos: i64, len: usize, timestamp: u64) -> Result<Vec<u8>, String> {
         // Find the version of pages at the given timestamp
@@ -254,6 +322,44 @@ impl SdmTape {
         entry.location = location;
         entry.increment_version();
         entry.update_access_time();
+        
+        Ok(())
+    }
+    
+    /// Internal: Write to a page with instruction counter
+    fn write_page_with_ic(&self, page_num: i64, offset: usize, data: &[u8], ic: u64) -> Result<(), String> {
+        let mut page_table = self.page_table.write().unwrap();
+        let mut backends = self.backends.write().unwrap();
+        
+        // Record write with IC
+        page_table.record_write_with_ic(page_num, ic);
+        
+        // Get the updated entry
+        let entry = page_table.get_or_create_page(page_num);
+        
+        // Read existing page data if partial write or page already exists
+        let mut page_data = if entry.location != StorageLocation::Unallocated && (offset > 0 || data.len() < self.config.page_size) {
+            backends.read(&entry.location, self.config.page_size)?
+        } else {
+            vec![0u8; self.config.page_size]
+        };
+        
+        // Update page data
+        page_data[offset..offset + data.len()].copy_from_slice(data);
+        
+        // Allocate storage if needed
+        let location = if entry.location == StorageLocation::Unallocated {
+            // Allocate new storage - for now, always use DRAM with page number as key
+            StorageLocation::Dram { key: page_num as u64 }
+        } else {
+            entry.location.clone()
+        };
+        
+        // Write to location
+        backends.write(&location, &page_data)?;
+        
+        // Update location
+        entry.location = location;
         
         Ok(())
     }

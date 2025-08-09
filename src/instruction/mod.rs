@@ -7,16 +7,20 @@ use crate::vm::Register;
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
-    // Arithmetic operations (all preserve inputs)
-    IAdd { dst: Register, src1: Register, src2: Register },
-    ISub { dst: Register, src1: Register, src2: Register },
-    IMul { dst: Register, src1: Register, src2: Register },
-    IXor { dst: Register, src1: Register, src2: Register },
+    // Reversible arithmetic operations (RISA)
+    RAdd { src1: Register, src2: Register, dst: Register },
+    RSub { src1: Register, src2: Register, dst: Register },
+    RXor { src: Register, dst: Register },
     
-    // Memory operations
-    Load { reg: Register, addr: Register },
-    Store { addr: Register, reg: Register },
-    Swap { addr: Register, reg: Register },
+    // Reversible memory operations (RISA)
+    RLoad { dst: Register, addr: Register, old: Register },
+    RStore { addr: Register, src: Register, old: Register },
+    MSwap { addr: Register, reg: Register },
+    
+    // Register operations
+    Swap { reg1: Register, reg2: Register },
+    
+    // Stack operations (still needed for function calls)
     Push { reg: Register },
     Pop { reg: Register },
     
@@ -80,16 +84,31 @@ impl Instruction {
     /// Get the inverse of this instruction
     pub fn inverse(&self) -> Option<Instruction> {
         match self {
-            Instruction::IAdd { dst, src1: _, src2 } => 
-                Some(Instruction::ISub { dst: *dst, src1: *dst, src2: *src2 }),
-            Instruction::ISub { dst, src1: _, src2 } => 
-                Some(Instruction::IAdd { dst: *dst, src1: *dst, src2: *src2 }),
-            Instruction::IXor { .. } => Some(self.clone()), // Self-inverse
+            // RISA arithmetic operations
+            Instruction::RAdd { src1, src2, dst } => 
+                Some(Instruction::RSub { src1: *src1, src2: *src2, dst: *dst }),
+            Instruction::RSub { src1, src2, dst } => 
+                Some(Instruction::RAdd { src1: *src1, src2: *src2, dst: *dst }),
+            Instruction::RXor { .. } => Some(self.clone()), // Self-inverse
+            
+            // RISA memory operations
+            Instruction::RLoad { dst, addr, old } => 
+                Some(Instruction::RLoad { dst: *old, addr: *addr, old: *dst }), // Swap dst and old
+            Instruction::RStore { addr, src, old } => 
+                Some(Instruction::RStore { addr: *addr, src: *old, old: *src }), // Swap src and old
+            Instruction::MSwap { .. } => Some(self.clone()), // Self-inverse
+            
+            // Register operations
             Instruction::Swap { .. } => Some(self.clone()),  // Self-inverse
+            
+            // Stack operations
             Instruction::Push { reg } => Some(Instruction::Pop { reg: *reg }),
             Instruction::Pop { reg } => Some(Instruction::Push { reg: *reg }),
+            
+            // Tape operations
             Instruction::TapeAdvance { delta } => 
                 Some(Instruction::TapeAdvance { delta: -delta }),
+                
             _ => None, // Some instructions need context to reverse
         }
     }
@@ -125,10 +144,13 @@ impl Instruction {
             Instruction::Halt => 1,
             Instruction::Return => 1,
             Instruction::LoadImm { .. } => 10, // 1 byte opcode + 1 byte reg + 8 bytes value
-            Instruction::IAdd { .. } | 
-            Instruction::ISub { .. } | 
-            Instruction::IMul { .. } | 
-            Instruction::IXor { .. } => 4, // 1 byte opcode + 3 bytes for registers
+            Instruction::RAdd { .. } | 
+            Instruction::RSub { .. } => 4, // 1 byte opcode + 3 bytes for registers
+            Instruction::RXor { .. } => 3, // 1 byte opcode + 2 bytes for registers
+            Instruction::RLoad { .. } |
+            Instruction::RStore { .. } => 4, // 1 byte opcode + 3 bytes for registers
+            Instruction::MSwap { .. } |
+            Instruction::Swap { .. } => 3, // 1 byte opcode + 2 bytes for registers
             _ => 8, // Default size for now
         }
     }
@@ -140,14 +162,14 @@ mod tests {
 
     #[test]
     fn test_inverse_operations() {
-        let add = Instruction::IAdd { dst: 0, src1: 1, src2: 2 };
+        let add = Instruction::RAdd { src1: 0, src2: 1, dst: 2 };
         let inv = add.inverse().unwrap();
         
         match inv {
-            Instruction::ISub { dst, src1, src2 } => {
-                assert_eq!(dst, 0);
+            Instruction::RSub { src1, src2, dst } => {
                 assert_eq!(src1, 0);
-                assert_eq!(src2, 2);
+                assert_eq!(src2, 1);
+                assert_eq!(dst, 2);
             }
             _ => panic!("Wrong inverse operation"),
         }
@@ -155,13 +177,13 @@ mod tests {
 
     #[test]
     fn test_self_inverse() {
-        let xor = Instruction::IXor { dst: 0, src1: 1, src2: 2 };
+        let xor = Instruction::RXor { src: 0, dst: 1 };
         let inv = xor.inverse().unwrap();
         
         match (&xor, &inv) {
-            (Instruction::IXor { .. }, Instruction::IXor { .. }) => {
+            (Instruction::RXor { .. }, Instruction::RXor { .. }) => {
                 // Should be identical
-                assert!(matches!(inv, Instruction::IXor { dst: 0, src1: 1, src2: 2 }));
+                assert!(matches!(inv, Instruction::RXor { src: 0, dst: 1 }));
             }
             _ => panic!("XOR should be self-inverse"),
         }
@@ -169,7 +191,7 @@ mod tests {
 
     #[test]
     fn test_stateful_check() {
-        assert!(Instruction::IAdd { dst: 0, src1: 1, src2: 2 }.is_stateful());
+        assert!(Instruction::RAdd { src1: 0, src2: 1, dst: 2 }.is_stateful());
         assert!(!Instruction::Nop.is_stateful());
         assert!(!Instruction::Compare { dst: 0, src1: 1, src2: 2 }.is_stateful());
     }
@@ -178,6 +200,6 @@ mod tests {
     fn test_branch_check() {
         assert!(Instruction::Jump { label: "test".to_string() }.is_branch());
         assert!(Instruction::Call { label: "func".to_string() }.is_branch());
-        assert!(!Instruction::IAdd { dst: 0, src1: 1, src2: 2 }.is_branch());
+        assert!(!Instruction::RAdd { src1: 0, src2: 1, dst: 2 }.is_branch());
     }
 }

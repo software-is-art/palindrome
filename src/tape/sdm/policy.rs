@@ -443,6 +443,7 @@ mod tests {
             page_num: 0,
             location: StorageLocation::Unallocated,
             version: 1,
+            written_at_ic: 0,
             stats: Default::default(),
             dirty: false,
             compressed: false,

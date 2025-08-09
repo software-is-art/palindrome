@@ -1,5 +1,5 @@
 ; Simple test program for Palindrome VM
-; Tests basic arithmetic and reversibility
+; Tests RISA (Reversible Instruction Set Architecture)
 
 main:
     ; Create checkpoint
@@ -8,10 +8,14 @@ main:
     ; Load some values
     LI R0, 10
     LI R1, 20
+    LI R2, 0
+    LI R3, 0
     
-    ; Perform arithmetic
-    IADD R2, R0, R1    ; R2 = 30
-    IMUL R3, R2, R0    ; R3 = 300
+    ; Perform reversible arithmetic
+    RADD R0, R1, R2    ; R2 = R2 + R0 + R1 = 0 + 10 + 20 = 30
+    LI R4, 10
+    LI R5, 1
+    RADD R2, R4, R3    ; R3 = R3 + R2 + R4 = 0 + 30 + 10 = 40
     
     ; Test stack operations  
     PUSH R3

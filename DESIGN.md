@@ -465,6 +465,35 @@ main:
 
 The beauty is that this VM makes reversal a first-class operation, not an expensive simulation. Programs compiled to this IL are inherently reversible.
 
+## Unified Architecture: RISA + SDM
+
+**UPDATE: Palindrome VM now uses a unified reversible architecture combining RISA (Reversible Instruction Set Architecture) with SDM (Software Defined Memory). This eliminates the need for trail-based execution entirely.**
+
+### How It Works
+
+1. **Instruction Counter (IC)**: Every instruction execution increments a global counter
+2. **RISA Operations**: Mathematically reversible - no information is lost
+3. **SDM Versioning**: Every memory write is tagged with the current IC
+4. **Reverse Execution**: Run instructions backwards, SDM provides correct memory versions
+
+### Example
+
+```assembly
+; Forward execution
+IC=100: LI R0, 10
+IC=101: LI R1, 20  
+IC=102: LI R2, 0
+IC=103: RADD R0, R1, R2    ; R2 = 30, R0/R1 preserved
+IC=104: RSTORE R3, R2, R4  ; Mem[R3] = 30, R4 = old value
+
+; Reverse execution from IC=105
+IC=104: RSTORE R3, R4, R2  ; Restore old memory value
+IC=103: RSUB R0, R1, R2    ; R2 = 0 again
+; Memory reads use SDM to get versions from before IC=104
+```
+
+This approach provides zero-overhead reversibility with formal verification guarantees.
+
 Should we flesh out the control flow mechanics more? That's where reversibility gets really interesting - especially with conditional branches and loops.
 
 Good question! Let me think about the data model...

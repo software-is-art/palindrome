@@ -4,11 +4,11 @@ A reversible virtual machine with unified tape abstraction that eliminates tradi
 
 ## Overview
 
-Palindrome VM is an experimental virtual machine where:
-- Everything is stored on an infinite bidirectional tape
-- Every operation is reversible by design
-- Memory, storage, and history are unified
-- No need for traditional version control, migrations, or defensive programming
+Palindrome VM is an experimental virtual machine featuring:
+- **RISA (Reversible Instruction Set Architecture)**: Every operation is mathematically reversible
+- **SDM (Software Defined Memory)**: Automatic memory versioning with zero-overhead time travel
+- **Unified tape abstraction**: Memory, storage, and history on one infinite tape
+- **No trail needed**: True reversibility without recording history
 
 ## Quick Start
 
@@ -38,21 +38,22 @@ This calculates the first 10 Fibonacci numbers, writes them to tape, then reads 
 - 16 general-purpose registers: R0 through R15
 - Flags: Zero, Negative, Carry, Overflow
 
-### Basic Instructions
+### Basic Instructions (RISA)
 
 ```asm
-; Arithmetic (all reversible)
-IADD R2, R0, R1    ; R2 = R0 + R1
-ISUB R2, R0, R1    ; R2 = R0 - R1
-IMUL R2, R0, R1    ; R2 = R0 * R1
-IXOR R2, R0, R1    ; R2 = R0 ^ R1 (self-inverse)
+; Reversible arithmetic operations
+RADD R0, R1, R2    ; R2 = R2 + R0 + R1 (preserves R0, R1)
+RSUB R0, R1, R2    ; R2 = R2 - R0 - R1 (inverse of RADD)
+RXOR R0, R1        ; R1 = R1 ^ R0 (self-inverse)
 
 ; Load immediate
 LI R0, 42          ; R0 = 42
 
-; Memory operations
-LOAD R0, R1        ; R0 = memory[R1]
-STORE R1, R0       ; memory[R1] = R0
+; Reversible memory operations
+RLOAD R0, R1, R2   ; R0 = memory[R1], R2 = old R0
+RSTORE R1, R0, R2  ; memory[R1] = R0, R2 = old memory[R1]
+MSWAP R1, R0       ; Swap memory[R1] with R0
+SWAP R0, R1        ; Swap R0 with R1
 PUSH R0            ; Push R0 to stack
 POP R0             ; Pop from stack to R0
 
@@ -84,19 +85,21 @@ DEBUG message      ; Print debug info
 
 ```asm
 main:
-    ; Create checkpoint for reversal
-    CHECKPOINT start
-    
-    ; Calculate 5 + 3
+    ; Initialize registers
     LI R0, 5
     LI R1, 3
-    IADD R2, R0, R1
+    LI R2, 0
+    
+    ; Reversible addition: R2 = 0 + 5 + 3 = 8
+    RADD R0, R1, R2
     
     ; Write result to tape
     TAPEWRITE R2, 8
     
-    ; Can rewind to undo everything
-    ; REWIND start
+    ; Reverse the addition: R2 = 8 - 5 - 3 = 0
+    RSUB R0, R1, R2
+    
+    ; R2 is now back to 0, R0 and R1 unchanged!
     
     HALT
 ```

@@ -81,67 +81,77 @@ impl Parser {
         let mnemonic = parts[0].to_uppercase();
         
         match mnemonic.as_str() {
-            "IADD" => {
+            "RADD" => {
                 if parts.len() != 4 {
-                    return Err("IADD requires 3 operands".to_string());
+                    return Err("RADD requires 3 operands".to_string());
                 }
-                Ok(Instruction::IAdd {
-                    dst: self.parse_register(parts[1])?,
-                    src1: self.parse_register(parts[2])?,
-                    src2: self.parse_register(parts[3])?,
+                Ok(Instruction::RAdd {
+                    src1: self.parse_register(parts[1])?,
+                    src2: self.parse_register(parts[2])?,
+                    dst: self.parse_register(parts[3])?,
                 })
             }
             
-            "ISUB" => {
+            "RSUB" => {
                 if parts.len() != 4 {
-                    return Err("ISUB requires 3 operands".to_string());
+                    return Err("RSUB requires 3 operands".to_string());
                 }
-                Ok(Instruction::ISub {
-                    dst: self.parse_register(parts[1])?,
-                    src1: self.parse_register(parts[2])?,
-                    src2: self.parse_register(parts[3])?,
+                Ok(Instruction::RSub {
+                    src1: self.parse_register(parts[1])?,
+                    src2: self.parse_register(parts[2])?,
+                    dst: self.parse_register(parts[3])?,
                 })
             }
             
-            "IMUL" => {
-                if parts.len() != 4 {
-                    return Err("IMUL requires 3 operands".to_string());
-                }
-                Ok(Instruction::IMul {
-                    dst: self.parse_register(parts[1])?,
-                    src1: self.parse_register(parts[2])?,
-                    src2: self.parse_register(parts[3])?,
-                })
-            }
-            
-            "IXOR" => {
-                if parts.len() != 4 {
-                    return Err("IXOR requires 3 operands".to_string());
-                }
-                Ok(Instruction::IXor {
-                    dst: self.parse_register(parts[1])?,
-                    src1: self.parse_register(parts[2])?,
-                    src2: self.parse_register(parts[3])?,
-                })
-            }
-            
-            "LOAD" => {
+            "RXOR" => {
                 if parts.len() != 3 {
-                    return Err("LOAD requires 2 operands".to_string());
+                    return Err("RXOR requires 2 operands".to_string());
                 }
-                Ok(Instruction::Load {
-                    reg: self.parse_register(parts[1])?,
+                Ok(Instruction::RXor {
+                    src: self.parse_register(parts[1])?,
+                    dst: self.parse_register(parts[2])?,
+                })
+            }
+            
+            "RLOAD" => {
+                if parts.len() != 4 {
+                    return Err("RLOAD requires 3 operands".to_string());
+                }
+                Ok(Instruction::RLoad {
+                    dst: self.parse_register(parts[1])?,
                     addr: self.parse_register(parts[2])?,
+                    old: self.parse_register(parts[3])?,
                 })
             }
             
-            "STORE" => {
-                if parts.len() != 3 {
-                    return Err("STORE requires 2 operands".to_string());
+            "RSTORE" => {
+                if parts.len() != 4 {
+                    return Err("RSTORE requires 3 operands".to_string());
                 }
-                Ok(Instruction::Store {
+                Ok(Instruction::RStore {
+                    addr: self.parse_register(parts[1])?,
+                    src: self.parse_register(parts[2])?,
+                    old: self.parse_register(parts[3])?,
+                })
+            }
+            
+            "MSWAP" => {
+                if parts.len() != 3 {
+                    return Err("MSWAP requires 2 operands".to_string());
+                }
+                Ok(Instruction::MSwap {
                     addr: self.parse_register(parts[1])?,
                     reg: self.parse_register(parts[2])?,
+                })
+            }
+            
+            "SWAP" => {
+                if parts.len() != 3 {
+                    return Err("SWAP requires 2 operands".to_string());
+                }
+                Ok(Instruction::Swap {
+                    reg1: self.parse_register(parts[1])?,
+                    reg2: self.parse_register(parts[2])?,
                 })
             }
             
@@ -381,12 +391,13 @@ mod tests {
             ; Simple test program
             LI R0, 10
             LI R1, 20
-            IADD R2, R0, R1
+            LI R2, 0
+            RADD R0, R1, R2
             HALT
         "#;
         
         let instructions = parser.parse(program).unwrap();
-        assert_eq!(instructions.len(), 4);
+        assert_eq!(instructions.len(), 5);
         
         match &instructions[0] {
             Instruction::LoadImm { reg, value } => {
@@ -405,13 +416,15 @@ mod tests {
             LI R0, 0
         loop:
             LI R1, 1
-            IADD R0, R0, R1
-            BNZ R0, loop
+            LI R2, 0
+            RADD R0, R1, R2
+            SWAP R0, R2
+            BNZ R2, loop
             HALT
         "#;
         
         let instructions = parser.parse(program).unwrap();
-        assert_eq!(instructions.len(), 5);
+        assert_eq!(instructions.len(), 7);
         
         // Check that labels were collected
         assert_eq!(parser.labels.get("main"), Some(&0));

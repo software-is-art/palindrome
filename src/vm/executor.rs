@@ -17,6 +17,8 @@ pub struct VM {
     pub sp: i64,
     /// Frame pointer
     pub fp: i64,
+    /// Instruction counter (monotonically increasing)
+    pub ic: u64,
     /// Execution history
     pub history: ExecutionHistory,
     /// Parallel timelines (for fork/merge)
@@ -43,6 +45,7 @@ pub struct HistoryFrame {
     pub ip_before: i64,
     pub sp_before: i64,
     pub fp_before: i64,
+    pub ic_before: u64,
     pub tape_trail_len: usize,
 }
 
@@ -54,6 +57,7 @@ pub struct Timeline {
     pub ip: i64,
     pub sp: i64,
     pub fp: i64,
+    pub ic: u64,
 }
 
 impl VM {
@@ -74,6 +78,7 @@ impl VM {
             ip: 0,
             sp: 1024 * 1024, // Stack starts at 1MB
             fp: 1024 * 1024,
+            ic: 0,
             history: ExecutionHistory::new(),
             timelines: HashMap::new(),
             current_timeline: "main".to_string(),
@@ -86,52 +91,93 @@ impl VM {
         // Save state for reversibility
         self.save_history_frame(inst.clone());
         
+        // Increment instruction counter
+        self.ic += 1;
+        
         match inst {
-            // Arithmetic
-            Instruction::IAdd { dst, src1, src2 } => {
+            // Reversible arithmetic operations (RISA)
+            Instruction::RAdd { src1, src2, dst } => {
                 let val1 = self.registers.read(src1)?;
                 let val2 = self.registers.read(src2)?;
-                self.registers.write(dst, val1.wrapping_add(val2))?;
+                let old_dst = self.registers.read(dst)?;
+                self.registers.write(dst, old_dst.wrapping_add(val1).wrapping_add(val2))?;
                 self.registers.update_flags(self.registers.read(dst)?);
             }
             
-            Instruction::ISub { dst, src1, src2 } => {
+            Instruction::RSub { src1, src2, dst } => {
                 let val1 = self.registers.read(src1)?;
                 let val2 = self.registers.read(src2)?;
-                self.registers.write(dst, val1.wrapping_sub(val2))?;
+                let old_dst = self.registers.read(dst)?;
+                self.registers.write(dst, old_dst.wrapping_sub(val1).wrapping_sub(val2))?;
                 self.registers.update_flags(self.registers.read(dst)?);
             }
             
-            Instruction::IMul { dst, src1, src2 } => {
-                let val1 = self.registers.read(src1)?;
-                let val2 = self.registers.read(src2)?;
-                self.registers.write(dst, val1.wrapping_mul(val2))?;
+            Instruction::RXor { src, dst } => {
+                let val_src = self.registers.read(src)?;
+                let val_dst = self.registers.read(dst)?;
+                self.registers.write(dst, val_dst ^ val_src)?;
                 self.registers.update_flags(self.registers.read(dst)?);
             }
             
-            Instruction::IXor { dst, src1, src2 } => {
-                let val1 = self.registers.read(src1)?;
-                let val2 = self.registers.read(src2)?;
-                self.registers.write(dst, val1 ^ val2)?;
-                self.registers.update_flags(self.registers.read(dst)?);
-            }
-            
-            // Memory
-            Instruction::Load { reg, addr } => {
+            // Reversible memory operations (RISA)
+            Instruction::RLoad { dst, addr, old } => {
                 let address = self.registers.read(addr)?;
+                let old_dst = self.registers.read(dst)?;
+                
+                // Use SDM if available, otherwise use regular tape
+                // For now, using regular tape
                 self.tape.tape.seek(address);
                 let value = i64::from_le_bytes(
                     self.tape.tape.read(8).try_into()
                         .map_err(|_| "Failed to read 8 bytes")?
                 );
-                self.registers.write(reg, value)?;
+                
+                self.registers.write(old, old_dst)?;
+                self.registers.write(dst, value)?;
             }
             
-            Instruction::Store { addr, reg } => {
+            Instruction::RStore { addr, src, old } => {
                 let address = self.registers.read(addr)?;
-                let value = self.registers.read(reg)?;
+                let value = self.registers.read(src)?;
+                
+                // Read old value from memory
+                self.tape.tape.seek(address);
+                let old_value = i64::from_le_bytes(
+                    self.tape.tape.read(8).try_into()
+                        .map_err(|_| "Failed to read 8 bytes")?
+                );
+                
+                // Store old value in old register
+                self.registers.write(old, old_value)?;
+                
+                // Write new value to memory
                 self.tape.tape.seek(address);
                 self.tape.tape.write(&value.to_le_bytes());
+            }
+            
+            Instruction::MSwap { addr, reg } => {
+                let address = self.registers.read(addr)?;
+                let reg_value = self.registers.read(reg)?;
+                
+                // Read memory value
+                self.tape.tape.seek(address);
+                let mem_value = i64::from_le_bytes(
+                    self.tape.tape.read(8).try_into()
+                        .map_err(|_| "Failed to read 8 bytes")?
+                );
+                
+                // Swap values
+                self.registers.write(reg, mem_value)?;
+                self.tape.tape.seek(address);
+                self.tape.tape.write(&reg_value.to_le_bytes());
+            }
+            
+            // Register operations
+            Instruction::Swap { reg1, reg2 } => {
+                let val1 = self.registers.read(reg1)?;
+                let val2 = self.registers.read(reg2)?;
+                self.registers.write(reg1, val2)?;
+                self.registers.write(reg2, val1)?;
             }
             
             Instruction::Push { reg } => {
@@ -338,6 +384,7 @@ impl VM {
             ip_before: self.ip,
             sp_before: self.sp,
             fp_before: self.fp,
+            ic_before: self.ic,
             tape_trail_len: self.tape.tape.trail_len(),
         };
         self.history.stack.push(frame);
@@ -358,6 +405,7 @@ impl VM {
             self.ip = frame.ip_before;
             self.sp = frame.sp_before;
             self.fp = frame.fp_before;
+            self.ic = frame.ic_before;
             
             // Rewind tape operations
             let rewind_count = self.tape.tape.trail_len() - frame.tape_trail_len;
@@ -407,8 +455,9 @@ mod tests {
         vm.execute(Instruction::LoadImm { reg: 0, value: 10 }).unwrap();
         vm.execute(Instruction::LoadImm { reg: 1, value: 20 }).unwrap();
         
-        // Add them
-        vm.execute(Instruction::IAdd { dst: 2, src1: 0, src2: 1 }).unwrap();
+        // Add them using RISA (R2 = R2 + R0 + R1, starting with R2 = 0)
+        vm.execute(Instruction::LoadImm { reg: 2, value: 0 }).unwrap();
+        vm.execute(Instruction::RAdd { src1: 0, src2: 1, dst: 2 }).unwrap();
         
         assert_eq!(vm.registers.read(2).unwrap(), 30);
     }
@@ -439,16 +488,27 @@ mod tests {
         // Execute some operations
         vm.execute(Instruction::LoadImm { reg: 0, value: 10 }).unwrap();
         vm.execute(Instruction::LoadImm { reg: 1, value: 20 }).unwrap();
-        vm.execute(Instruction::IAdd { dst: 2, src1: 0, src2: 1 }).unwrap();
+        vm.execute(Instruction::LoadImm { reg: 2, value: 0 }).unwrap();
         
+        // Checkpoint before RISA operations
+        vm.execute(Instruction::Checkpoint { label: "before_add".to_string() }).unwrap();
+        
+        // Execute RISA add
+        vm.execute(Instruction::RAdd { src1: 0, src2: 1, dst: 2 }).unwrap();
         assert_eq!(vm.registers.read(2).unwrap(), 30);
         
-        // Reverse the addition
-        vm.reverse_last().unwrap();
+        // Execute RISA sub (reverse of add)
+        vm.execute(Instruction::RSub { src1: 0, src2: 1, dst: 2 }).unwrap();
         assert_eq!(vm.registers.read(2).unwrap(), 0);
         
-        // Reverse loading R1
-        vm.reverse_last().unwrap();
-        assert_eq!(vm.registers.read(1).unwrap(), 0);
+        // Test register swap (self-inverse)
+        vm.execute(Instruction::Swap { reg1: 0, reg2: 1 }).unwrap();
+        assert_eq!(vm.registers.read(0).unwrap(), 20);
+        assert_eq!(vm.registers.read(1).unwrap(), 10);
+        
+        // Swap again to restore
+        vm.execute(Instruction::Swap { reg1: 0, reg2: 1 }).unwrap();
+        assert_eq!(vm.registers.read(0).unwrap(), 10);
+        assert_eq!(vm.registers.read(1).unwrap(), 20);
     }
 }

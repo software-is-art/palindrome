@@ -37,6 +37,9 @@ pub struct PageEntry {
     /// Version number (for COW and history)
     pub version: u64,
     
+    /// Instruction counter when this version was written
+    pub written_at_ic: u64,
+    
     /// Access statistics
     pub stats: AccessStats,
     
@@ -55,6 +58,9 @@ pub struct PageEntry {
 pub struct HistoricalPage {
     /// Version when this page was active
     pub version: u64,
+    
+    /// Instruction counter when this version was written
+    pub written_at_ic: u64,
     
     /// Storage location of historical data
     pub location: StorageLocation,
@@ -149,6 +155,7 @@ impl PageTable {
                 page_num,
                 location: StorageLocation::Unallocated,
                 version: current_version,
+                written_at_ic: 0, // Will be set on first write
                 stats: AccessStats::default(),
                 dirty: false,
                 compressed: false,
@@ -213,6 +220,40 @@ impl PageTable {
         }
     }
     
+    /// Record a write with instruction counter
+    pub fn record_write_with_ic(&mut self, page_num: i64, ic: u64) {
+        // Need to create a new version before modifying
+        let needs_history = if let Some(entry) = self.entries.get(&page_num) {
+            entry.dirty && entry.written_at_ic != ic
+        } else {
+            false
+        };
+        
+        if needs_history {
+            if let Some(entry) = self.entries.remove(&page_num) {
+                self.add_to_history(entry);
+            }
+        }
+        
+        let new_version = self.next_version();
+        let now = current_timestamp();
+        
+        let entry = self.get_or_create_page(page_num);
+        entry.written_at_ic = ic;
+        entry.dirty = true;
+        entry.version = new_version;
+        entry.stats.write_count += 1;
+        entry.stats.last_write = now;
+        
+        // Update access stats
+        let time_since_last = (now - entry.stats.last_access) as f32 / 1_000_000_000.0;
+        if time_since_last > 0.0 {
+            let instant_frequency = 1.0 / time_since_last;
+            entry.stats.frequency = 0.9 * entry.stats.frequency + 0.1 * instant_frequency;
+        }
+        entry.stats.last_access = now;
+    }
+    
     /// Create a checkpoint
     pub fn create_checkpoint(&mut self, name: String) {
         let checkpoint = CheckpointInfo {
@@ -261,10 +302,37 @@ impl PageTable {
         None
     }
     
+    /// Read page at a specific instruction counter
+    pub fn read_at_ic(&self, page_num: i64, target_ic: u64) -> Option<Vec<u8>> {
+        // Check if current version is before target IC
+        if let Some(entry) = self.entries.get(&page_num) {
+            if entry.written_at_ic < target_ic {
+                // Current version is what we want
+                // In real implementation, would read from storage
+                return Some(vec![0u8; entry.size]);
+            }
+        }
+        
+        // Search in history for the most recent version before target IC
+        if let Some(history) = self.history.get(&page_num) {
+            for historical in history.iter() {
+                if historical.written_at_ic < target_ic {
+                    // Found the right historical version
+                    // In real implementation, would read from storage
+                    return Some(vec![0u8; historical.size]);
+                }
+            }
+        }
+        
+        // No version exists before this IC - return zeros
+        Some(vec![0u8; 4096])
+    }
+    
     /// Add a page to history
     fn add_to_history(&mut self, entry: PageEntry) {
         let historical = HistoricalPage {
             version: entry.version,
+            written_at_ic: entry.written_at_ic,
             location: entry.location.clone(),
             replaced_at: current_timestamp(),
             size: entry.size,
