@@ -5,6 +5,10 @@
 
 mod core;
 mod segment;
+pub mod sdm;
 
 pub use core::{Tape, Page, Trail, TrailOp};
 pub use segment::{Segment, SegmentedTape, SegmentType, Schema, Field, DataType, Index, IndexType};
+
+// Re-export SDM components for easy access
+pub use sdm::{SdmTape, SdmConfig};

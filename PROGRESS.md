@@ -64,6 +64,13 @@ Building a reversible virtual machine with unified tape abstraction that elimina
 - ✅ Created VM runner (pvmr) with interactive debugging
 - ✅ Created example programs (simple_test.pvm, fibonacci.pvm)
 - ✅ Successfully ran Fibonacci sequence calculation with reversibility!
+- ✅ Implemented Software Defined Memory (SDM) system
+  - Virtual address space with policy hints
+  - Hierarchical storage backends (DRAM, Local, Network, S3)
+  - Smart page table with version tracking
+  - Policy engine for declarative memory placement
+  - Access pattern predictor for intelligent prefetching
+  - Full test coverage (15 tests passing)
 
 ## Key Decisions
 
