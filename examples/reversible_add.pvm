@@ -1,0 +1,73 @@
+; Reversible Addition Example
+; Demonstrates theoretically reversible arithmetic
+; without using trail/history
+
+main:
+    ; Initialize values
+    LI R0, 10        ; a = 10
+    LI R1, 20        ; b = 20
+    LI R2, 0         ; c = 0 (will hold result)
+    
+    DEBUG Before reversible add
+    
+    ; Reversible addition: c = a + b (preserving a and b)
+    ; In a real implementation, this would be:
+    ; RADD R0, R1, R2
+    ; For now, simulate with current instructions
+    
+    ; Step 1: Save inputs
+    PUSH R0          ; Save a
+    PUSH R1          ; Save b
+    
+    ; Step 2: Compute
+    IADD R2, R0, R1  ; c = a + b
+    
+    ; Step 3: Restore inputs (making it reversible)
+    POP R1           ; Restore b
+    POP R0           ; Restore a
+    
+    DEBUG After reversible add - all values preserved
+    
+    ; Demonstrate reversal
+    ; To reverse RADD R0, R1, R2, we do RSUB R0, R1, R2
+    ; Which computes: c = c - a - b (should give us original c = 0)
+    
+    PUSH R0          ; Save a
+    PUSH R1          ; Save b
+    
+    ISUB R2, R2, R0  ; c = c - a
+    ISUB R2, R2, R1  ; c = c - b
+    
+    POP R1           ; Restore b
+    POP R0           ; Restore a
+    
+    DEBUG After reversal - c should be 0 again
+    
+    ; Demonstrate self-inverse operation (XOR)
+    LI R3, 0xFF      ; Some value
+    LI R4, 0xAA      ; Another value
+    
+    DEBUG Before XOR
+    
+    IXOR R3, R3, R4  ; R3 = R3 XOR R4
+    DEBUG After first XOR
+    
+    IXOR R3, R3, R4  ; R3 = R3 XOR R4 (reverses to original)
+    DEBUG After second XOR - R3 restored
+    
+    HALT
+
+; In a true reversible ISA, this would be much cleaner:
+;
+; main:
+;     LI R0, 10
+;     LI R1, 20  
+;     LI R2, 0
+;     
+;     RADD R0, R1, R2    ; R2 = R0 + R1, preserves R0, R1
+;     DEBUG After add
+;     
+;     RSUB R0, R1, R2    ; R2 = R2 - R0 - R1 (reverses the add)
+;     DEBUG After reverse
+;     
+;     HALT

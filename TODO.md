@@ -30,7 +30,14 @@
 - [ ] Implement network storage backend
 - [ ] Add configurable storage policies via config file
 
-### 2. Type System Extensions
+### 2. Reversible ISA Implementation
+- [ ] Implement RADD, RSUB, RMUL reversible arithmetic
+- [ ] Implement RLOAD, RSTORE, MSWAP memory operations
+- [ ] Implement SWAP, CSWAP conditional operations
+- [ ] Add .mode directive for trail/reversible switching
+- [ ] Formal verification of reversibility properties
+
+### 3. Type System Extensions
 - [ ] String support (not just i64)
 - [ ] Arrays/vectors
 - [ ] Structs/records

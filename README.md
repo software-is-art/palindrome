@@ -127,6 +127,11 @@ main:
 - Checkpoint/rewind for time-travel debugging
 - SDM automatically optimizes storage for rewind operations
 
+### Dual Execution Modes
+- **Trail Mode**: Traditional reversibility with history trail (easy to use)
+- **Reversible ISA Mode**: Theoretically reversible operations (zero overhead)
+- **Hybrid Mode**: Mix both approaches for optimal flexibility
+
 ## Interactive Debugging
 
 When an error occurs, the VM offers interactive options:

@@ -1,0 +1,112 @@
+; Trail-Based vs Reversible ISA Comparison
+; Shows the same computation in both modes
+
+main:
+    ; =========================================
+    ; Trail-Based Approach (Current)
+    ; =========================================
+    
+    CHECKPOINT trail_start
+    
+    ; Simple Fibonacci step: c = a + b
+    LI R0, 1         ; a = 1
+    LI R1, 1         ; b = 1
+    IADD R2, R0, R1  ; c = a + b = 2
+    
+    ; Update for next step: a = b, b = c
+    ; This DESTROYS information!
+    LI R0, 0         ; Clear R0 (information lost!)
+    IADD R0, R1, R0  ; a = b
+    LI R1, 0         ; Clear R1 (information lost!)
+    IADD R1, R2, R1  ; b = c
+    
+    DEBUG Trail mode - information lost, but trail saves us
+    
+    ; We can still rewind because trail recorded everything
+    REWIND trail_start
+    
+    DEBUG After rewind - restored by trail
+    
+    ; =========================================
+    ; Reversible ISA Approach (Theoretical)
+    ; =========================================
+    
+    ; Same Fibonacci, but preserving information
+    LI R0, 1         ; a = 1
+    LI R1, 1         ; b = 1
+    LI R2, 0         ; c = 0
+    
+    ; Reversible add: c = a + b (preserves a, b)
+    ; Simulated RADD R0, R1, R2
+    PUSH R0
+    PUSH R1
+    IADD R2, R0, R1
+    POP R1
+    POP R0
+    
+    DEBUG Reversible mode step 1 - all values preserved
+    
+    ; For next Fibonacci step, use SWAP instead of destroying
+    ; Want: a = b, b = c, but preserve old a
+    
+    ; Simulated SWAP R0, R1  (a <-> b)
+    PUSH R0
+    PUSH R1
+    POP R0
+    POP R1
+    
+    ; Simulated SWAP R1, R2  (b <-> c)
+    PUSH R1
+    PUSH R2
+    POP R1
+    POP R2
+    
+    DEBUG After swaps - rotated values, nothing lost
+    
+    ; To reverse, just swap back in opposite order!
+    ; SWAP R1, R2
+    PUSH R1
+    PUSH R2
+    POP R1
+    POP R2
+    
+    ; SWAP R0, R1
+    PUSH R0
+    PUSH R1  
+    POP R0
+    POP R1
+    
+    DEBUG After reversal - back to original state, no trail needed!
+    
+    ; =========================================
+    ; Comparison
+    ; =========================================
+    ; Trail mode: 
+    ;   - Simple to write
+    ;   - Destroys information
+    ;   - Trail grows with each operation
+    ;   - Reversal reads trail
+    ;
+    ; Reversible mode:
+    ;   - More verbose
+    ;   - Preserves all information  
+    ;   - No trail needed
+    ;   - Reversal is just running backwards
+    
+    HALT
+
+; Future syntax with true reversible ISA:
+;
+; fibonacci_reversible:
+;     LI R0, 1         ; a
+;     LI R1, 1         ; b
+;     LI R2, 0         ; c
+;     
+;     RADD R0, R1, R2  ; c = a + b
+;     SWAP R0, R1      ; a <-> b  
+;     SWAP R1, R2      ; b <-> c
+;     
+;     ; To reverse:
+;     SWAP R1, R2      ; Undo second swap
+;     SWAP R0, R1      ; Undo first swap
+;     RSUB R0, R1, R2  ; Undo addition

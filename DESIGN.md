@@ -366,13 +366,85 @@ History Tape Entry:
 +------------------+
 ```
 
+## Dual-Mode Execution Model
+
+Palindrome VM supports two execution modes, each with different trade-offs:
+
+### Mode 1: Trail-Based (Pragmatic)
+Traditional mode where operations record their inverse in a trail:
+
+```assembly
+.mode trail
+IADD R2, R0, R1    // R2 = R0 + R1, trail records old R2
+LOAD R3, R4        // R3 = Mem[R4], trail records old R3
+```
+
+**Advantages:**
+- Simple, familiar programming model
+- Any operation can be made reversible
+- Easy incremental adoption
+
+**Disadvantages:**
+- Trail recording overhead
+- Memory usage grows with execution
+- Trail must be synchronized for parallel execution
+
+### Mode 2: Reversible ISA (Theoretical)
+Provably reversible operations that need no trail:
+
+```assembly
+.mode reversible
+RADD R0, R1, R2    // R2 = R0 + R1, R0 & R1 preserved
+RLOAD R3, R4, R5   // R3 = Mem[R4], R5 = old R3
+```
+
+**Advantages:**
+- Zero overhead reversal
+- Constant memory usage
+- Natural parallelism
+- Formally verifiable
+
+**Disadvantages:**
+- More registers needed
+- Verbose programming
+- Steeper learning curve
+
+### Hybrid Execution
+Mix modes based on requirements:
+
+```assembly
+.mode trail
+; Setup code using simple operations
+LOAD R0, config_addr
+LOAD R1, data_addr
+
+.checkpoint "compute_start"
+
+.mode reversible  
+; Performance-critical reversible computation
+RADD R0, R1, R2
+RMUL R2, R3, R4
+; ... complex calculation ...
+
+.mode trail
+; Cleanup and I/O
+STORE result_addr, R4
+```
+
 ## Example: Reversible Function Call
 
 ```assembly
-; Function: add_one(x) -> x + 1
+; Trail-based function
+.mode trail
 add_one:
     IADD r_ret, r_arg, #1    ; Adds 1, saves old r_ret
     RETURN
+
+; Reversible function  
+.mode reversible
+radd_one:
+    RADD r_arg, One, r_ret   ; r_ret = r_arg + 1, preserves r_arg
+    RRETURN r_link           ; Reversible return
 
 ; Calling it:
 main:
