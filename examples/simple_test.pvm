@@ -1,11 +1,11 @@
 ; Simple test program for Palindrome VM
-; Tests RISA (Reversible Instruction Set Architecture)
+; Tests RISA (Reversible Instruction Set Architecture) with SDM
 
 main:
-    ; Create checkpoint
+    ; Create checkpoint - SDM will version pages automatically
     CHECKPOINT beginning
     
-    ; Load some values
+    ; Initialize registers using LoadImm (LI alias)
     LI R0, 10
     LI R1, 20
     LI R2, 0
@@ -14,28 +14,34 @@ main:
     ; Perform reversible arithmetic
     RADD R0, R1, R2    ; R2 = R2 + R0 + R1 = 0 + 10 + 20 = 30
     LI R4, 10
-    LI R5, 1
+    LI R5, 0
     RADD R2, R4, R3    ; R3 = R3 + R2 + R4 = 0 + 30 + 10 = 40
     
-    ; Test stack operations  
-    PUSH R3
-    PUSH R2
+    ; Test reversible XOR
+    LI R6, 0xFF
+    RXOR R6, R0        ; R0 = R0 XOR R6 = 10 XOR 0xFF = 0xF5
+    RXOR R6, R0        ; R0 = R0 XOR R6 = 0xF5 XOR 0xFF = 10 (restored)
     
-    POP R4             ; R4 = 30
-    POP R5             ; R5 = 300
+    ; Test SWAP operation
+    SWAP R2, R3        ; R2 = 40, R3 = 30
+    SWAP R2, R3        ; R2 = 30, R3 = 40 (restored)
+    
+    ; Test tape operations with SDM
+    TAPEWRITE R3, 8    ; Write 40 to tape at position 0
+    TAPESEEK 0         ; Go back to position 0
+    TAPEREAD R7, 8     ; Read it back into R7
     
     ; Test comparison
-    CMP R6, R4, R2     ; Should be equal
-    DEBUG Comparison result (should be 0)
+    COMPARE R6, R7, R3 ; Compare R7 (40) with R3 (40)
+    DEBUG Comparison result (should be 0 for equal)
     
-    ; Test tape operations
-    TAPEWRITE R3, 8    ; Write 300 to tape
-    TAPEADVANCE -8     ; Go back
-    TAPEREAD R7, 8     ; Read it back
+    ; Demonstrate reversibility
+    RSUB R2, R4, R3    ; R3 = R3 - R2 - R4 = 40 - 30 - 10 = 0
+    RSUB R0, R1, R2    ; R2 = R2 - R0 - R1 = 30 - 10 - 20 = 0
     
-    DEBUG All tests complete
+    DEBUG All tests complete - values reversed to original
     
-    ; Uncomment to test reversal:
+    ; Uncomment to test time-travel with SDM:
     ; REWIND beginning
     
     HALT

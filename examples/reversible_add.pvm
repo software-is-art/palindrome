@@ -1,5 +1,5 @@
 ; Reversible Addition Example
-; Demonstrates RISA (Reversible Instruction Set Architecture)
+; Demonstrates RISA (Reversible Instruction Set Architecture) operations
 
 main:
     ; Initialize values
@@ -44,5 +44,24 @@ main:
     DEBUG After swap - values exchanged
     SWAP R5, R6      ; Swap again to restore
     DEBUG After second swap - values restored
+    
+    ; Demonstrate chained reversible operations
+    LI R7, 5
+    LI R8, 3
+    LI R9, 0
+    
+    ; Chain multiple RADDs
+    RADD R7, R8, R9    ; R9 = 0 + 5 + 3 = 8
+    RADD R7, R9, R8    ; R8 = 3 + 5 + 8 = 16
+    RADD R8, R9, R7    ; R7 = 5 + 16 + 8 = 29
+    
+    DEBUG After chained additions
+    
+    ; Reverse the chain in opposite order
+    RSUB R8, R9, R7    ; R7 = 29 - 16 - 8 = 5 (original)
+    RSUB R7, R9, R8    ; R8 = 16 - 5 - 8 = 3 (original)
+    RSUB R7, R8, R9    ; R9 = 8 - 5 - 3 = 0 (original)
+    
+    DEBUG After reversing chain - all values restored
     
     HALT

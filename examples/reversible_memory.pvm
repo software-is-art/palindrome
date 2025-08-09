@@ -1,89 +1,79 @@
 ; Reversible Memory Operations Example
-; Demonstrates memory operations that preserve information
+; Demonstrates RISA memory operations with SDM (Software Defined Memory)
 
 main:
-    ; Set up data segment
+    ; Create checkpoint - SDM will version memory pages
     CHECKPOINT start
     
-    ; Initialize memory location with value
-    LI R0, 1000      ; Address
+    ; Initialize registers and memory address
+    LI R0, 1000      ; Memory address
     LI R1, 42        ; Value to store
-    STORE R0, R1     ; Mem[1000] = 42
+    LI R2, 0         ; Will hold old memory value
     
-    ; Reversible memory swap
-    ; MSWAP would swap register with memory
-    ; Simulating: temp = Mem[addr]; Mem[addr] = reg; reg = temp
+    ; Reversible store operation
+    ; RSTORE preserves the old memory value
+    RSTORE R0, R1, R2   ; Mem[1000] = 42, R2 = old Mem[1000]
     
-    LI R2, 99        ; New value
-    LI R3, 0         ; Will hold old memory value
+    DEBUG After RSTORE - old value preserved in R2
     
-    DEBUG Before memory swap
+    ; Prepare for memory swap
+    LI R3, 99        ; New value for swap
     
-    ; Simulate MSWAP R0, R2
-    LOAD R3, R0      ; R3 = Mem[R0] (save old value)
-    STORE R0, R2     ; Mem[R0] = R2
-    PUSH R2          ; Save R2
-    POP R2           ; This would be: R2 = R3 in real MSWAP
-    PUSH R3
-    POP R2           ; R2 now has old memory value
+    ; Memory-register swap (MSWAP)
+    ; This atomically swaps register with memory
+    MSWAP R0, R3     ; R3 = Mem[1000] (42), Mem[1000] = 99
     
-    DEBUG After memory swap - values exchanged
+    DEBUG After MSWAP - values exchanged
     
-    ; Reverse the swap (MSWAP is self-inverse)
-    LOAD R3, R0      ; R3 = Mem[R0]
-    STORE R0, R2     ; Mem[R0] = R2  
-    PUSH R2
-    POP R2
-    PUSH R3
-    POP R2           ; R2 = R3
+    ; Swap again to restore (MSWAP is self-inverse)
+    MSWAP R0, R3     ; R3 = Mem[1000] (99), Mem[1000] = 42
     
-    DEBUG After reverse swap - original state restored
+    DEBUG After second MSWAP - original state restored
     
     ; Demonstrate reversible load
-    ; RLOAD preserves the old register value
-    
     LI R4, 77        ; Some value in R4
-    LI R5, 0         ; Will hold old R4
+    LI R5, 0         ; Will hold old R4 value
     
-    DEBUG Before reversible load
+    ; RLOAD preserves the old register value
+    RLOAD R4, R0, R5  ; R4 = Mem[1000] (42), R5 = old R4 (77)
     
-    ; Simulate RLOAD R4, R0, R5
-    ; R4 = Mem[R0], R5 = old R4
-    PUSH R4          ; Save old R4
-    LOAD R4, R0      ; R4 = Mem[R0]
-    POP R5           ; R5 = old R4
+    DEBUG After RLOAD - old register value preserved in R5
     
-    DEBUG After reversible load - old value preserved in R5
+    ; To reverse the load, swap the destination and old registers
+    RLOAD R5, R0, R4  ; R5 = Mem[1000] (42), R4 = old R5 (77)
     
-    ; To reverse: RLOAD R5, R0, R4
-    ; Which restores R4 to its old value
-    PUSH R5          ; old becomes new
-    PUSH R4          ; new becomes old
-    POP R5
-    POP R4
+    DEBUG After reverse RLOAD - R4 restored to 77
     
-    DEBUG After reversal - R4 restored
+    ; Complex memory pattern with multiple addresses
+    LI R6, 2000      ; Second address
+    LI R7, 100       ; Value for second location
+    LI R8, 0         ; Temp for old values
     
-    ; Rewind to show trail still works
-    REWIND start
+    ; Store to multiple locations
+    RSTORE R6, R7, R8    ; Mem[2000] = 100, R8 = old Mem[2000]
     
-    DEBUG After rewind - everything restored
+    ; Swap between memory locations using registers
+    MSWAP R0, R7         ; R7 = Mem[1000] (42), Mem[1000] = 100
+    MSWAP R6, R7         ; R7 = Mem[2000] (100), Mem[2000] = 42
+    
+    DEBUG After memory location swap
+    
+    ; Restore by swapping in reverse order
+    MSWAP R6, R7         ; R7 = Mem[2000] (42), Mem[2000] = 100
+    MSWAP R0, R7         ; R7 = Mem[1000] (100), Mem[1000] = 42
+    
+    DEBUG Memory locations restored
+    
+    ; Demonstrate SDM time-travel capability
+    ; Uncomment to rewind and see SDM restore all memory states:
+    ; REWIND start
+    ; DEBUG After rewind - all memory restored by SDM!
     
     HALT
 
-; In a true reversible ISA:
-;
-; main:
-;     LI R0, 1000       ; Address
-;     LI R1, 42         ; Value
-;     LI R2, 99         ; Another value
-;     
-;     RSTORE R0, R1, R3 ; Mem[R0] = R1, R3 = old Mem[R0]
-;     
-;     MSWAP R0, R2      ; Swap R2 with Mem[R0]
-;     MSWAP R0, R2      ; Swap again (self-inverse)
-;     
-;     RLOAD R4, R0, R5  ; R4 = Mem[R0], R5 = old R4
-;     RLOAD R5, R0, R4  ; Reverse the load
-;     
-;     HALT
+; Key differences with RISA + SDM:
+; 1. RSTORE/RLOAD preserve old values - no information loss
+; 2. MSWAP provides atomic memory-register exchange
+; 3. SDM automatically versions memory pages for time-travel
+; 4. No manual trail management needed
+; 5. All operations have clear inverses

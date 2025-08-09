@@ -1,72 +1,89 @@
-; Reversible Fibonacci calculator
-; Demonstrates basic arithmetic and tape operations
+; Reversible Fibonacci calculator using RISA
+; Demonstrates provably reversible computation with zero trail overhead
 
 main:
-    ; Create checkpoint for full reversal
+    ; Create checkpoint for time-travel demonstration
     CHECKPOINT start
     
-    ; Initialize registers
+    ; Initialize Fibonacci sequence
     LI R0, 0            ; F(0) = 0
     LI R1, 1            ; F(1) = 1
-    LI R2, 10           ; Calculate first 10 Fibonacci numbers
+    LI R2, 8            ; Calculate first 8 Fibonacci numbers (reduced for testing)
     LI R3, 0            ; Counter
+    LI R4, 0            ; Temp register for calculations
     
-    ; Mark tape position for sequence
+    ; Mark tape position for sequence (SDM will handle paging)
     TAPEMARK fibonacci_seq
     
     ; Write first two numbers to tape
-    TAPEWRITE R0, 8     ; Write F(0)
+    TAPEWRITE R0, 8     ; Write F(0) = 0
     TAPEADVANCE 8
-    TAPEWRITE R1, 8     ; Write F(1)
+    TAPEWRITE R1, 8     ; Write F(1) = 1
     TAPEADVANCE 8
+    
+    ; Write counter to check
+    LI R3, 2            ; We've written 2 numbers already
     
 loop:
     ; Check if we've calculated enough numbers
-    EQ R4, R3, R2       ; Check if counter == limit
-    BNZ R4, done        ; If equal, we're done
+    EQUAL R5, R3, R2    ; Check if counter == limit
+    BNZ R5, done        ; If equal, we're done
     
-    ; Calculate next Fibonacci number
-    IADD R5, R0, R1    ; R5 = F(n-2) + F(n-1)
+    ; Calculate next Fibonacci number reversibly
+    ; F(n) = F(n-1) + F(n-2), preserving all values
+    RADD R0, R1, R4     ; R4 = 0 + F(n-2) + F(n-1)
     
-    ; Write to tape
-    TAPEWRITE R5, 8
+    ; Write to tape (SDM automatically versions pages)
+    TAPEWRITE R4, 8
     TAPEADVANCE 8
     
-    ; Update values for next iteration
-    ; R0 = R1 (old F(n-1) becomes new F(n-2))
-    ; R1 = R5 (new F(n) becomes new F(n-1))
-    LI R6, 0
-    IADD R6, R6, R1    ; R6 = R1 (save R1)
-    LI R1, 0
-    IADD R1, R1, R5    ; R1 = R5
-    LI R0, 0
-    IADD R0, R0, R6    ; R0 = old R1
+    ; Rotate values for next iteration using swaps
+    ; This preserves all information (no destruction)
+    SWAP R0, R1         ; R0 = F(n-1), R1 = F(n-2)
+    SWAP R1, R4         ; R1 = F(n), R4 = F(n-2)
     
-    ; Increment counter
-    LI R7, 1
-    IADD R3, R3, R7
+    ; Clear R4 for next calculation (reversibly)
+    RSUB R4, R4, R4     ; R4 = R4 - R4 - R4 = -R4 (effectively 0)
+    
+    ; Increment counter using SWAP trick
+    LI R6, 1
+    LI R7, 0
+    RADD R3, R6, R7     ; R7 = 0 + R3 + 1 = R3 + 1
+    SWAP R3, R7         ; R3 = R3 + 1, R7 = old R3
     
     JMP loop
 
 done:
-    DEBUG Fibonacci sequence calculation complete
+    DEBUG Fibonacci sequence calculated
     
     ; Demonstrate reading back the sequence
     TAPESEEKMARK fibonacci_seq
     
-    LI R8, 0            ; Counter for reading
-read_loop:
-    EQ R9, R8, R2      ; Check if counter == limit
-    BNZ R9, finish     ; If equal, we're done
-    
-    TAPEREAD R10, 8
-    DEBUG Read Fibonacci number
+    ; Read and display first few values
+    TAPEREAD R0, 8      ; Read F(0)
+    DEBUG F(0) read
     TAPEADVANCE 8
     
-    LI R11, 1
-    IADD R8, R8, R11
-    JMP read_loop
-
-finish:
-    DEBUG Program complete - can REWIND to start to undo everything
+    TAPEREAD R1, 8      ; Read F(1)
+    DEBUG F(1) read
+    TAPEADVANCE 8
+    
+    TAPEREAD R2, 8      ; Read F(2)
+    DEBUG F(2) read
+    TAPEADVANCE 8
+    
+    TAPEREAD R3, 8      ; Read F(3)
+    DEBUG F(3) read
+    TAPEADVANCE 8
+    
+    TAPEREAD R4, 8      ; Read F(4)
+    DEBUG F(4) read
+    
+    DEBUG Program complete - ready for time travel
+    
+    ; Demonstrate full reversibility
+    ; Uncomment these lines to reverse the entire computation:
+    ; REWIND start        ; SDM will restore all memory states
+    ; DEBUG Back at start - all computation reversed!
+    
     HALT

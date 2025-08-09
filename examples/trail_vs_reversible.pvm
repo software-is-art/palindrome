@@ -1,112 +1,109 @@
-; Trail-Based vs Reversible ISA Comparison
-; Shows the same computation in both modes
+; RISA (Reversible ISA) Demonstration
+; Shows how reversible operations eliminate the need for trails
 
 main:
     ; =========================================
-    ; Trail-Based Approach (Current)
+    ; Reversible Fibonacci with RISA
     ; =========================================
     
-    CHECKPOINT trail_start
+    ; Initialize for Fibonacci
+    LI R0, 1         ; F(n-2) = 1
+    LI R1, 1         ; F(n-1) = 1
+    LI R2, 0         ; F(n) = 0 (will be computed)
     
-    ; Simple Fibonacci step: c = a + b
-    LI R0, 1         ; a = 1
-    LI R1, 1         ; b = 1
-    IADD R2, R0, R1  ; c = a + b = 2
+    DEBUG Starting Fibonacci step with RISA
     
-    ; Update for next step: a = b, b = c
-    ; This DESTROYS information!
-    LI R0, 0         ; Clear R0 (information lost!)
-    IADD R0, R1, R0  ; a = b
-    LI R1, 0         ; Clear R1 (information lost!)
-    IADD R1, R2, R1  ; b = c
+    ; Compute F(n) = F(n-1) + F(n-2) reversibly
+    RADD R0, R1, R2  ; R2 = 0 + 1 + 1 = 2
     
-    DEBUG Trail mode - information lost, but trail saves us
+    DEBUG After RADD - all values preserved: F(n-2)=1, F(n-1)=1, F(n)=2
     
-    ; We can still rewind because trail recorded everything
-    REWIND trail_start
+    ; Prepare for next iteration using swaps
+    ; We want: F(n-2) = F(n-1), F(n-1) = F(n)
+    SWAP R0, R1      ; R0 = 1 (old F(n-1)), R1 = 1 (old F(n-2))
+    SWAP R1, R2      ; R1 = 2 (F(n)), R2 = 1 (old F(n-2))
     
-    DEBUG After rewind - restored by trail
+    DEBUG After rotation: F(n-2)=1, F(n-1)=2, old F(n-2) in R2
     
     ; =========================================
-    ; Reversible ISA Approach (Theoretical)
+    ; Demonstrate Perfect Reversibility
     ; =========================================
     
-    ; Same Fibonacci, but preserving information
-    LI R0, 1         ; a = 1
-    LI R1, 1         ; b = 1
-    LI R2, 0         ; c = 0
+    ; To reverse, we undo operations in opposite order
+    SWAP R1, R2      ; Undo second swap
+    SWAP R0, R1      ; Undo first swap
+    RSUB R0, R1, R2  ; Undo addition: R2 = 2 - 1 - 1 = 0
     
-    ; Reversible add: c = a + b (preserves a, b)
-    ; Simulated RADD R0, R1, R2
-    PUSH R0
-    PUSH R1
-    IADD R2, R0, R1
-    POP R1
-    POP R0
-    
-    DEBUG Reversible mode step 1 - all values preserved
-    
-    ; For next Fibonacci step, use SWAP instead of destroying
-    ; Want: a = b, b = c, but preserve old a
-    
-    ; Simulated SWAP R0, R1  (a <-> b)
-    PUSH R0
-    PUSH R1
-    POP R0
-    POP R1
-    
-    ; Simulated SWAP R1, R2  (b <-> c)
-    PUSH R1
-    PUSH R2
-    POP R1
-    POP R2
-    
-    DEBUG After swaps - rotated values, nothing lost
-    
-    ; To reverse, just swap back in opposite order!
-    ; SWAP R1, R2
-    PUSH R1
-    PUSH R2
-    POP R1
-    POP R2
-    
-    ; SWAP R0, R1
-    PUSH R0
-    PUSH R1  
-    POP R0
-    POP R1
-    
-    DEBUG After reversal - back to original state, no trail needed!
+    DEBUG After reversal - back to original state!
     
     ; =========================================
-    ; Comparison
+    ; More Complex Example with Memory
     ; =========================================
-    ; Trail mode: 
-    ;   - Simple to write
-    ;   - Destroys information
-    ;   - Trail grows with each operation
-    ;   - Reversal reads trail
-    ;
-    ; Reversible mode:
-    ;   - More verbose
-    ;   - Preserves all information  
-    ;   - No trail needed
-    ;   - Reversal is just running backwards
+    
+    LI R3, 1000      ; Memory address
+    LI R4, 42        ; Value to store
+    LI R5, 0         ; For old values
+    
+    ; Store value reversibly
+    RSTORE R3, R4, R5  ; Mem[1000] = 42, R5 = old Mem[1000]
+    
+    DEBUG Stored 42 at address 1000, old value in R5
+    
+    ; Update the value
+    LI R6, 99
+    MSWAP R3, R6       ; R6 = Mem[1000] (42), Mem[1000] = 99
+    
+    DEBUG Swapped: memory now has 99, R6 has 42
+    
+    ; Load the value reversibly
+    LI R7, 0
+    LI R8, 0
+    RLOAD R7, R3, R8   ; R7 = Mem[1000] (99), R8 = old R7 (0)
+    
+    DEBUG Loaded 99 into R7, old R7 value (0) in R8
+    
+    ; =========================================
+    ; Reverse Everything Step by Step
+    ; =========================================
+    
+    ; Reverse the load
+    RLOAD R8, R3, R7   ; R8 = Mem[1000] (99), R7 = 0 (restored)
+    
+    ; Reverse the swap
+    MSWAP R3, R6       ; R6 = Mem[1000] (99), Mem[1000] = 42
+    
+    ; Reverse the store
+    RSTORE R3, R5, R4  ; Mem[1000] = old value, R4 = 42
+    
+    DEBUG All operations reversed without using trail!
+    
+    ; =========================================
+    ; Key Advantages of RISA
+    ; =========================================
+    ; 1. No trail needed - operations are inherently reversible
+    ; 2. No memory overhead for history
+    ; 3. Can reverse at any granularity
+    ; 4. Parallel execution is safe (no trail conflicts)
+    ; 5. Energy efficient (theoretical minimum dissipation)
+    
+    ; =========================================
+    ; SDM Integration Benefits
+    ; =========================================
+    ; 1. Automatic page versioning for time-travel
+    ; 2. Zero-copy reversibility
+    ; 3. Efficient storage hierarchy
+    ; 4. Temporal-aware caching
     
     HALT
 
-; Future syntax with true reversible ISA:
+; Traditional trail-based approach would:
+; - Record every state change
+; - Consume memory proportional to execution length  
+; - Require synchronization for parallel execution
+; - Need garbage collection for old trail entries
 ;
-; fibonacci_reversible:
-;     LI R0, 1         ; a
-;     LI R1, 1         ; b
-;     LI R2, 0         ; c
-;     
-;     RADD R0, R1, R2  ; c = a + b
-;     SWAP R0, R1      ; a <-> b  
-;     SWAP R1, R2      ; b <-> c
-;     
-;     ; To reverse:
-;     SWAP R1, R2      ; Undo second swap
-;     SWAP R0, R1      ; Undo first swap
-;     RSUB R0, R1, R2  ; Undo addition
+; RISA approach:
+; - Each operation preserves information
+; - Constant memory usage
+; - Natural parallelism
+; - No garbage collection needed
