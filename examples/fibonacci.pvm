@@ -1,0 +1,72 @@
+; Reversible Fibonacci calculator
+; Demonstrates basic arithmetic and tape operations
+
+main:
+    ; Create checkpoint for full reversal
+    CHECKPOINT start
+    
+    ; Initialize registers
+    LI R0, 0            ; F(0) = 0
+    LI R1, 1            ; F(1) = 1
+    LI R2, 10           ; Calculate first 10 Fibonacci numbers
+    LI R3, 0            ; Counter
+    
+    ; Mark tape position for sequence
+    TAPEMARK fibonacci_seq
+    
+    ; Write first two numbers to tape
+    TAPEWRITE R0, 8     ; Write F(0)
+    TAPEADVANCE 8
+    TAPEWRITE R1, 8     ; Write F(1)
+    TAPEADVANCE 8
+    
+loop:
+    ; Check if we've calculated enough numbers
+    EQ R4, R3, R2       ; Check if counter == limit
+    BNZ R4, done        ; If equal, we're done
+    
+    ; Calculate next Fibonacci number
+    IADD R5, R0, R1    ; R5 = F(n-2) + F(n-1)
+    
+    ; Write to tape
+    TAPEWRITE R5, 8
+    TAPEADVANCE 8
+    
+    ; Update values for next iteration
+    ; R0 = R1 (old F(n-1) becomes new F(n-2))
+    ; R1 = R5 (new F(n) becomes new F(n-1))
+    LI R6, 0
+    IADD R6, R6, R1    ; R6 = R1 (save R1)
+    LI R1, 0
+    IADD R1, R1, R5    ; R1 = R5
+    LI R0, 0
+    IADD R0, R0, R6    ; R0 = old R1
+    
+    ; Increment counter
+    LI R7, 1
+    IADD R3, R3, R7
+    
+    JMP loop
+
+done:
+    DEBUG Fibonacci sequence calculation complete
+    
+    ; Demonstrate reading back the sequence
+    TAPESEEKMARK fibonacci_seq
+    
+    LI R8, 0            ; Counter for reading
+read_loop:
+    EQ R9, R8, R2      ; Check if counter == limit
+    BNZ R9, finish     ; If equal, we're done
+    
+    TAPEREAD R10, 8
+    DEBUG Read Fibonacci number
+    TAPEADVANCE 8
+    
+    LI R11, 1
+    IADD R8, R8, R11
+    JMP read_loop
+
+finish:
+    DEBUG Program complete - can REWIND to start to undo everything
+    HALT

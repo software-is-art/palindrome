@@ -1,0 +1,37 @@
+; Simple test program for Palindrome VM
+; Tests basic arithmetic and reversibility
+
+main:
+    ; Create checkpoint
+    CHECKPOINT beginning
+    
+    ; Load some values
+    LI R0, 10
+    LI R1, 20
+    
+    ; Perform arithmetic
+    IADD R2, R0, R1    ; R2 = 30
+    IMUL R3, R2, R0    ; R3 = 300
+    
+    ; Test stack operations  
+    PUSH R3
+    PUSH R2
+    
+    POP R4             ; R4 = 30
+    POP R5             ; R5 = 300
+    
+    ; Test comparison
+    CMP R6, R4, R2     ; Should be equal
+    DEBUG Comparison result (should be 0)
+    
+    ; Test tape operations
+    TAPEWRITE R3, 8    ; Write 300 to tape
+    TAPEADVANCE -8     ; Go back
+    TAPEREAD R7, 8     ; Read it back
+    
+    DEBUG All tests complete
+    
+    ; Uncomment to test reversal:
+    ; REWIND beginning
+    
+    HALT

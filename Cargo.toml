@@ -1,0 +1,27 @@
+[package]
+name = "palindrome-vm"
+version = "0.1.0"
+edition = "2024"
+authors = ["Palindrome VM Contributors"]
+description = "A reversible virtual machine with unified tape abstraction"
+license = "MIT"
+
+[dependencies]
+# Keeping dependencies minimal as specified in the design
+
+[dev-dependencies]
+proptest = "1.4"
+criterion = "0.5"
+
+[lib]
+name = "palindrome_vm"
+path = "src/lib.rs"
+
+[[bin]]
+name = "pvmr"
+path = "src/bin/pvmr.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
