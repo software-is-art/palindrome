@@ -104,10 +104,11 @@ Target benchmarks:
 
 See TODO.md for the detailed roadmap. Key priorities:
 
-1. **Tape Persistence**: Save/load VM state to disk
+1. ~~**Tape Persistence**: Save/load VM state to disk~~ ✅ Implemented via SDM!
 2. **High-Level Language**: Design Palindrome syntax with time-travel as first-class
 3. **Real Demo Apps**: Reversible text editor, calculator, games
 4. **Better Types**: Strings, arrays, structs (not just i64)
+5. **SDM Enhancements**: S3 backend, async prefetching, network storage
 
 ## Lessons Learned
 

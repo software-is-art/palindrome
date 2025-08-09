@@ -224,6 +224,78 @@ Trail (compressed):
 // Can checkpoint and compress periodically
 ```
 
+## Software Defined Memory (SDM)
+
+Traditional VMs rely on OS virtual memory, but we can do better. Our SDM system provides:
+
+### Hierarchical Storage Tiers
+
+```
+┌─────────────────────────────────────────┐
+│         Palindrome VM                   │
+│  ┌─────────────────────────────────┐   │
+│  │      Tape Abstraction           │   │
+│  └──────────▲──────────────────────┘   │
+└─────────────┼───────────────────────────┘
+              │
+┌─────────────▼───────────────────────────┐
+│    Software Defined Memory Layer        │
+│  ┌─────────────────────────────────┐   │
+│  │   Policy Engine                 │   │
+│  │   - Access pattern tracking     │   │
+│  │   - Temporal locality aware     │   │
+│  │   - Declarative placement rules │   │
+│  └─────────────────────────────────┘   │
+└────────────────┬───────────────────────┘
+                 │
+┌────────────────▼───────────────────────┐
+│         Storage Backends               │
+├────────────────────────────────────────┤
+│ DRAM │ Local SSD │ Network │ S3/Cold   │
+└────────────────────────────────────────┘
+```
+
+### Policy-Driven Memory Management
+
+Instead of manual memory management, declare policies:
+
+```rust
+// Development policy - optimize for debugging
+policy! {
+    if region == Code => Dram,
+    if age < 5.minutes => Dram,
+    if is_checkpoint => LocalSsd,
+    prefetch_depth: 10,
+}
+
+// Production policy - optimize for cost
+policy! {
+    if frequency > 100/sec => Dram,
+    if age < 1.hour => LocalSsd,
+    if age > 1.day => S3,
+    compression: Zstd,
+}
+```
+
+### Temporal Access Optimization
+
+SDM understands time-travel access patterns:
+
+1. **Checkpoint Prefetching**: When rewinding to a checkpoint, SDM prefetches pages likely to be accessed based on historical patterns
+2. **Version Management**: Each page maintains version history, with recent versions in fast storage
+3. **Rewind Prediction**: Machine learning model predicts which pages will be accessed after a rewind
+
+### Zero-Copy Time Travel
+
+The integration of SDM with our tape design enables true zero-copy time travel:
+
+```
+Write to page → 
+  Tape: Records trail operation
+  SDM: Increments version, preserves old version
+  Result: Both forward and reverse operations are O(1)
+```
+
 ## The Instruction Set
 
 Here's a minimal but complete reversible IL:

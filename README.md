@@ -108,6 +108,13 @@ main:
 - Copy-on-write for efficiency
 - All operations recorded in history trail
 
+### Software Defined Memory (SDM)
+- **Policy-driven memory management** - no manual memory allocation
+- **Hierarchical storage** - transparently spans DRAM, SSD, network, and cloud storage
+- **Temporal awareness** - optimized for time-travel access patterns
+- **Zero-copy versioning** - historical data preserved efficiently
+- **Predictive prefetching** - learns from access patterns to optimize performance
+
 ### Segments
 - Code: Program instructions
 - Stack: Function calls and local variables
@@ -118,6 +125,7 @@ main:
 - Every instruction has an inverse
 - Full execution history maintained
 - Checkpoint/rewind for time-travel debugging
+- SDM automatically optimizes storage for rewind operations
 
 ## Interactive Debugging
 
